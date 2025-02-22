@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telugu ASR - Voice Recorder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: url('/background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #fff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            top: 10%;
+            left: 5%;
+            text-align: left;
+        }
+
+        h1 {
+            color: #FFD700;
+            margin-bottom: 20px;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        audio {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .transcription {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: white;
+            color: black;
+            text-align: center;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Telugu ASR - Voice Recorder</h1>
+        <button id="startButton">🎤 Start Recording</button>
+        <button id="stopButton" disabled>⏹ Stop Recording</button>
+        <audio id="audioPlayback" controls></audio>
+        <br>
+        <button id="uploadButton" disabled>📤 Upload and Transcribe</button>
+        <p id="transcriptionResult" class="transcription">Transcription will appear here...</p>
+
+        <script>
+            let mediaRecorder;
+            let audioChunks = [];
+
+            document.getElementById('startButton').addEventListener('click', async () => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    document.getElementById('audioPlayback').src = audioUrl;
+                    document.getElementById('uploadButton').audioBlob = audioBlob;
+                    document.getElementById('uploadButton').disabled = false;
+                };
+
+                mediaRecorder.start();
+                document.getElementById('startButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
+            });
+
+            document.getElementById('stopButton').addEventListener('click', () => {
+                mediaRecorder.stop();
+                document.getElementById('startButton').disabled = false;
+                document.getElementById('stopButton').disabled = true;
+            });
+
+            document.getElementById('uploadButton').addEventListener('click', async () => {
+                const audioBlob = document.getElementById('uploadButton').audioBlob;
+                const formData = new FormData();
+                formData.append("file", audioBlob, "recorded_audio.webm");
+
+                try {
+                    const response = await fetch("/transcribe/", { method: "POST", body: formData });
+                    const data = await response.json();
+                    document.getElementById('transcriptionResult').innerText = `Transcription: ${data.transcript}`;
+                } catch (error) {
+                    document.getElementById('transcriptionResult').innerText = "Error during transcription.";
+                }
+            });
+        </script>
+    </div>
+</body>
+</html>

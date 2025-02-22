@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  train:
+    image: asr-wav2vec-finetune
+    runtime: nvidia  # Enable GPU support
+    volumes:
+      - /mnt/d/IIITHCapstone:/content/drive/MyDrive/IIITHCapstone  # Map Windows path to container path
+    working_dir: /content/drive/MyDrive/IIITHCapstone  # Set working directory
+    stdin_open: true  # Allow interactive input
+    tty: true         # Allocate a pseudo-TTY
+    shm_size: "2g"  # Increase shared memory allocation to 2GB
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]  # Specify GPU capabilities
+    ulimits:
+      memlock: -1  # Unlimited memory locking
+      stack: 67108864  # Stack size limit
+    ipc: host  # Use host-level inter-process communication
+    command: >
+      bash -c "
+      python /content/drive/MyDrive/IIITHCapstone/ASR-Wav2vec-Finetune/train.py
+      -c /content/drive/MyDrive/IIITHCapstone/ASR-Wav2vec-Finetune/config.toml
+      > /content/drive/MyDrive/IIITHCapstone/train.log 2>&1
+      "

@@ -1,0 +1,14 @@
+datasets
+huggingface_hub
+librosa
+numpy
+pandarallel
+pandas
+scikit_learn
+tensorflow
+toml
+torch
+tqdm
+transformers
+evaluate
+jiwer

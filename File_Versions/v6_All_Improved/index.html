@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Telugu ASR</title>
+  <style>
+    /* Global reset and fonts */
+    * {
+      font-family: "Noto Sans", "Noto Sans Telugu", Arial, sans-serif;
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: url('/background.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+    }
+    /* Common panel styling */
+    .container {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #recordPanel {
+      top: 10%;
+      left: 5%;
+      width: 500px;
+      height: 400px;
+    }
+    #uploadPanel {
+      top: 10%;
+      right: 5%;
+      width: 500px;
+      height: 400px;
+    }
+    #livePanel {
+      bottom: 5%;
+      left: 5%;
+      width: 500px;
+      height: 400px;
+    }
+    h1 {
+      text-align: center;
+      color: #FFD700;
+      margin-bottom: 10px;
+    }
+    .button-group {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    button,
+    input {
+      padding: 8px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4caf50;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .transcription {
+      flex-grow: 1;
+      background-color: white;
+      color: black;
+      border-radius: 5px;
+      padding: 10px;
+      font-size: 14px;
+      overflow: auto;
+      margin-top: 10px;
+      text-align: center;
+    }
+    
+    /* Credits Panel styling */
+    #creditsPanel {
+      bottom: 5%;
+      right: 5%;
+      width: 500px;
+      height: 400px;
+      perspective: 1000px; /* 3D flip effect */
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+    .flip-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      margin: 0;
+      padding: 0;
+    }
+    .flipper {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.6s;
+    }
+    /* Front and Back sides for credits - disable scrolling */
+    .front, .back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      overflow: hidden;
+      background: none;
+      margin: 0;
+      padding: 0;
+    }
+    /* Inner container for consistent left padding and spacing */
+    .content {
+      padding: 20px 30px;
+    }
+    /* Reset top margin for headers on both sides */
+    .front .content h1, .back .content h1 {
+      margin-top: 0;
+    }
+    /* Content paragraphs styling */
+    .content p {
+      margin: 0 0 10px 0;
+      line-height: 1.5;
+    }
+    /* For lines with a colon, split the title and value */
+    .line-title {
+      color: #E6B800; /* Slightly dark yellow for titles */
+      font-weight: bold;
+    }
+    .line-value {
+      color: #97d4c5;
+    }
+    /* Style for student names with reduced spacing */
+    .student-name {
+      color: #97d4c5;
+      margin: 0 0 5px 0;
+    }
+    /* Front (English) side */
+    .front {
+      transform: rotateY(0deg);
+    }
+    /* Back (Telugu) side – with reduced font size if needed */
+    .back {
+      transform: rotateY(-180deg);
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <!-- Recording & Transcription Panel -->
+  <div class="container" id="recordPanel">
+    <h1>Voice Recorder</h1>
+    <div class="button-group">
+      <button id="startButton">🎤 Start Recording</button>
+      <button id="stopButton" disabled>⏹ Stop Recording</button>
+    </div>
+    <audio id="audioPlayback" controls></audio>
+    <button id="uploadButton" disabled>📤 Upload and Transcribe</button>
+    <p id="transcriptionResult" class="transcription">Transcription will appear here...</p>
+  </div>
+
+  <!-- Upload & Transcribe Panel -->
+  <div class="container" id="uploadPanel">
+    <h1>WAV Audio File Upload</h1>
+    <input type="file" id="wavUpload" accept="audio/wav" />
+    <button id="uploadWavButton" disabled>📤 Upload WAV and Transcribe</button>
+    <p id="transcriptionResultUpload" class="transcription">Transcription will appear here...</p>
+  </div>
+
+  <!-- Live Transcription Panel -->
+  <div class="container" id="livePanel">
+    <h1>Live Transcription</h1>
+    <div class="button-group">
+      <button id="startLiveButton">▶ Start Live</button>
+      <button id="stopLiveButton" disabled>⏹ Stop Live</button>
+    </div>
+    <p id="liveTranscriptionResult" class="transcription">Live transcription will appear here...</p>
+  </div>
+
+  <!-- Credits Panel -->
+  <div class="container" id="creditsPanel">
+    <div class="flip-container">
+      <div class="flipper" id="creditsFlipper">
+        <!-- Front Side: English Content -->
+        <div class="front">
+          <div class="content">
+            <h1>Credits</h1>
+            <p>Talent Sprint - IIIT Hyderabad - AIML Program</p>
+            <p>Batch 23 - Group 18</p>
+            <p>
+              <span class="line-title">Capstone Project:</span>
+              <span class="line-value">Telugu ASR</span>
+            </p>
+            <p>
+              <span class="line-title">Project Supervisor:</span>
+              <span class="line-value">Prof. Anil</span>
+            </p>
+            <p>
+              <span class="line-title">Project Mentor:</span>
+              <span class="line-value">Vamsi Raghu</span>
+            </p>
+            <p class="line-title">Students:</p>
+            <p class="student-name">K V S Manoj Kumar Vadali (2305677)</p>
+            <p class="student-name">Srikanth Nellikonda (2305635)</p>
+            <p class="student-name">Jimmy John Perakatt (2303945)</p>
+          </div>
+        </div>
+        <!-- Back Side: Telugu Content -->
+        <div class="back">
+          <div class="content">
+            <p></p>
+            <h1>క్రెడిట్స్</h1>
+            <p>టాలెంట్ స్ప్రింట్ - ఐఐఐటీ హైదరాబాద్ - ఏఐఎంఎల్ ప్రోగ్రామ్</p>
+            <p>బ్యాచ్ 23 - గ్రూప్ 18</p>
+            <p>
+              <span class="line-title">క్యాప్స్టోన్ ప్రాజెక్ట్:</span>
+              <span class="line-value">తెలుగు ఏఎస్‌ఆర్</span>
+            </p>
+            <p>
+              <span class="line-title">ప్రాజెక్ట్ సూపర్వైజర్:</span>
+              <span class="line-value">ప్రొఫెసర్ అనిల్</span>
+            </p>
+            <p>
+              <span class="line-title">ప్రాజెక్ట్ మెంటార్:</span>
+              <span class="line-value">వంశి రఘు</span>
+            </p>
+            <p class="line-title">విద్యార్థులు:</p>
+            <p class="student-name">కే వి ఎస్ మనోజ్ కుమార్ వడాలి (2305677)</p>
+            <p class="student-name">శృకాంత్ నెల్లికొండ (2305635)</p>
+            <p class="student-name">జిమ్మీ జాన్ పెరకట్ (2303945)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Record & Transcribe Logic
+    let mediaRecorder;
+    let audioChunks = [];
+    document.getElementById("startButton").addEventListener("click", async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorder.ondataavailable = (event) => { audioChunks.push(event.data); };
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        document.getElementById("audioPlayback").src = audioUrl;
+        document.getElementById("uploadButton").audioBlob = audioBlob;
+        document.getElementById("uploadButton").disabled = false;
+        audioChunks = [];
+      };
+      mediaRecorder.start();
+      document.getElementById("startButton").disabled = true;
+      document.getElementById("stopButton").disabled = false;
+    });
+    document.getElementById("stopButton").addEventListener("click", () => {
+      mediaRecorder.stop();
+      document.getElementById("startButton").disabled = false;
+      document.getElementById("stopButton").disabled = true;
+    });
+    document.getElementById("uploadButton").addEventListener("click", async () => {
+      const audioBlob = document.getElementById("uploadButton").audioBlob;
+      const formData = new FormData();
+      formData.append("file", audioBlob, "recorded_audio.webm");
+      try {
+        const response = await fetch("/transcribe/", { method: "POST", body: formData });
+        const data = await response.json();
+        document.getElementById("transcriptionResult").innerText = "Transcription: " + data.transcript;
+      } catch (error) {
+        document.getElementById("transcriptionResult").innerText = "Error during transcription.";
+      }
+    });
+
+    // Upload & Transcribe Logic
+    document.getElementById("wavUpload").addEventListener("change", () => {
+      const fileInput = document.getElementById("wavUpload");
+      document.getElementById("uploadWavButton").disabled = fileInput.files.length === 0;
+    });
+    document.getElementById("uploadWavButton").addEventListener("click", async () => {
+      const fileInput = document.getElementById("wavUpload");
+      if (!fileInput.files.length) {
+        alert("Please select a WAV file to upload.");
+        return;
+      }
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const response = await fetch("/transcribe/", { method: "POST", body: formData });
+        const data = await response.json();
+        document.getElementById("transcriptionResultUpload").innerText = "Transcription: " + data.transcript;
+      } catch (error) {
+        document.getElementById("transcriptionResultUpload").innerText = "Error during transcription.";
+      }
+    });
+
+    // Live Transcription Logic
+    let liveRecorder, liveStream, liveHeader = null, isLiveRecording = false;
+    document.getElementById("startLiveButton").addEventListener("click", async () => {
+      isLiveRecording = true;
+      liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      liveRecorder = new MediaRecorder(liveStream, { mimeType: "audio/webm;codecs=opus" });
+      document.getElementById("liveTranscriptionResult").innerText = "";
+      liveRecorder.ondataavailable = async (event) => {
+        if (!isLiveRecording) return;
+        if (event.data.size < 512) return;
+        let chunkToSend;
+        if (!liveHeader) {
+          liveHeader = event.data;
+          chunkToSend = event.data;
+        } else {
+          chunkToSend = new Blob([liveHeader, event.data], { type: "audio/webm;codecs=opus" });
+        }
+        const formData = new FormData();
+        formData.append("file", chunkToSend, "live_chunk.webm");
+        try {
+          const response = await fetch("/live-transcribe-chunk", { method: "POST", body: formData });
+          const data = await response.json();
+          const currentText = document.getElementById("liveTranscriptionResult").innerText;
+          document.getElementById("liveTranscriptionResult").innerText = currentText + " " + data.transcript;
+        } catch (error) {
+          console.error("Live transcription error:", error);
+        }
+      };
+      liveRecorder.start(2000);
+      document.getElementById("startLiveButton").disabled = true;
+      document.getElementById("stopLiveButton").disabled = false;
+    });
+    document.getElementById("stopLiveButton").addEventListener("click", () => {
+      isLiveRecording = false;
+      liveRecorder.stop();
+      liveStream.getTracks().forEach((track) => track.stop());
+      document.getElementById("startLiveButton").disabled = false;
+      document.getElementById("stopLiveButton").disabled = true;
+      liveHeader = null;
+    });
+
+    // Automatic Flip for Credits
+    let flipped = false;
+    setInterval(() => {
+      flipped = !flipped;
+      document.getElementById("creditsFlipper").style.transform = flipped ? "rotateY(180deg)" : "rotateY(0deg)";
+    }, 4000);
+  </script>
+</body>
+</html>

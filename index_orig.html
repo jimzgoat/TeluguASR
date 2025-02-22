@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        audio {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        #transcriptionResult {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            width: 80%;
+            max-width: 600px;
+            text-align: center;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice Recorder</h1>
+    <button id="startButton">Start Recording</button>
+    <button id="stopButton" disabled>Stop Recording</button>
+    <audio id="audioPlayback" controls></audio>
+    <br>
+    <button id="uploadButton" disabled>Upload and Transcribe</button>
+    <p id="transcriptionResult">Transcription will appear here...</p>
+
+    <script>
+        let audioChunks = [];
+        let mediaRecorder;
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const uploadButton = document.getElementById('uploadButton');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const transcriptionResult = document.getElementById('transcriptionResult');
+
+        startButton.addEventListener('click', async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.start();
+            startButton.disabled = true;
+            stopButton.disabled = false;
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioBuffer = await new AudioContext().decodeAudioData(await audioBlob.arrayBuffer());
+                const wavBlob = convertToWav(audioBuffer);
+                const wavUrl = URL.createObjectURL(wavBlob);
+                audioPlayback.src = wavUrl;
+
+                uploadButton.wavBlob = wavBlob;
+                uploadButton.disabled = false;
+            };
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        });
+
+        uploadButton.addEventListener('click', async () => {
+            const wavBlob = uploadButton.wavBlob;
+            console.log('Uploading file with type:', wavBlob.type, 'and size:', wavBlob.size);
+
+            const formData = new FormData();
+            formData.append('file', wavBlob, 'recording.wav');
+
+            try {
+                const response = await fetch('/transcribe/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Transcription result:', result);
+                    transcriptionResult.textContent = `Transcription: ${result.transcript}`;
+                } else {
+                    transcriptionResult.textContent = 'Failed to transcribe audio.';
+                    console.error('Failed response:', response);
+                }
+            } catch (error) {
+                transcriptionResult.textContent = 'An error occurred while uploading.';
+                console.error('Error uploading file:', error);
+            }
+        });
+
+        function convertToWav(audioBuffer) {
+            const numOfChannels = audioBuffer.numberOfChannels;
+            const length = audioBuffer.length * numOfChannels * 2 + 44;
+            const buffer = new ArrayBuffer(length);
+            const view = new DataView(buffer);
+
+            let offset = 0;
+            const writeString = (s) => {
+                for (let i = 0; i < s.length; i++) {
+                    view.setUint8(offset++, s.charCodeAt(i));
+                }
+            };
+
+            writeString("RIFF");
+            view.setUint32(offset, 36 + audioBuffer.length * 2, true); offset += 4;
+            writeString("WAVE");
+            writeString("fmt ");
+            view.setUint32(offset, 16, true); offset += 4;
+            view.setUint16(offset, 1, true); offset += 2; // PCM
+            view.setUint16(offset, numOfChannels, true); offset += 2;
+            view.setUint32(offset, audioBuffer.sampleRate, true); offset += 4;
+            view.setUint32(offset, audioBuffer.sampleRate * numOfChannels * 2, true); offset += 4;
+            view.setUint16(offset, numOfChannels * 2, true); offset += 2;
+            view.setUint16(offset, 16, true); offset += 2; // Bits per sample
+            writeString("data");
+            view.setUint32(offset, audioBuffer.length * numOfChannels * 2, true); offset += 4;
+
+            const channelData = audioBuffer.getChannelData(0);
+            const pcmData = new Int16Array(buffer, 44);
+            for (let i = 0; i < channelData.length; i++) {
+                pcmData[i] = Math.max(-1, Math.min(1, channelData[i])) * 0x7FFF;
+            }
+
+            return new Blob([buffer], { type: "audio/wav" });
+        }
+    </script>
+</body>
+</html>

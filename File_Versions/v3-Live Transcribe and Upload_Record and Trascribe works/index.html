@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telugu ASR - Voice Recorder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: url('/background.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      height: 100vh;
+      padding: 20px;
+      position: relative;
+    }
+
+    .container {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 30px;
+      border-radius: 10px;
+      width: 80%;
+      max-width: 500px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      position: absolute;
+      top: 10%;
+      text-align: left;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Left Panel */
+    .container.record-panel {
+      left: 5%;
+    }
+
+    /* Right Panel */
+    .container.upload-panel {
+      right: 5%;
+      left: auto;
+    }
+
+    /* Live Transcription Panel */
+    .container.live-panel {
+      top: 55%;
+      left: 5%;
+      width: 90%;
+      max-width: 600px;
+    }
+
+    h1 {
+      color: #FFD700;
+      margin-bottom: 20px;
+    }
+
+    button,
+    input {
+      margin: 10px 5px;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4caf50;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .button-group {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    audio {
+      margin-top: 10px;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .transcription {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      background-color: white;
+      color: black;
+      text-align: center;
+      font-size: 16px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <!-- Recording & Transcription Panel (Left Side) -->
+  <div class="container record-panel">
+    <h1>Telugu ASR - Voice Recorder</h1>
+    <div class="button-group">
+      <button id="startButton">🎤 Start Recording</button>
+      <button id="stopButton" disabled>⏹ Stop Recording</button>
+    </div>
+    <audio id="audioPlayback" controls></audio>
+    <br />
+    <button id="uploadButton" disabled>📤 Upload and Transcribe</button>
+    <p id="transcriptionResult" class="transcription">
+      Transcription will appear here...
+    </p>
+  </div>
+
+  <!-- Upload & Transcribe Panel (Right Side) -->
+  <div class="container upload-panel">
+    <h1>Upload & Transcribe</h1>
+    <input type="file" id="wavUpload" accept="audio/wav" />
+    <button id="uploadWavButton">📤 Upload WAV and Transcribe</button>
+    <p id="transcriptionResultUpload" class="transcription">
+      Transcription will appear here...
+    </p>
+  </div>
+
+  <!-- Live Transcription Panel -->
+  <div class="container live-panel">
+    <h1>Live Transcription</h1>
+    <div class="button-group">
+      <button id="startLiveButton">▶ Start Live</button>
+      <button id="stopLiveButton" disabled>⏹ Stop Live</button>
+    </div>
+    <p id="liveTranscriptionResult" class="transcription">
+      Live transcription will appear here...
+    </p>
+  </div>
+
+  <script>
+    // ===============================
+    //  Existing Record & Transcribe Logic
+    // ===============================
+    let mediaRecorder;
+    let audioChunks = [];
+
+    document.getElementById("startButton").addEventListener("click", async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        document.getElementById("audioPlayback").src = audioUrl;
+        document.getElementById("uploadButton").audioBlob = audioBlob;
+        document.getElementById("uploadButton").disabled = false;
+        // Reset chunks for next recording
+        audioChunks = [];
+      };
+
+      mediaRecorder.start();
+      document.getElementById("startButton").disabled = true;
+      document.getElementById("stopButton").disabled = false;
+    });
+
+    document.getElementById("stopButton").addEventListener("click", () => {
+      mediaRecorder.stop();
+      document.getElementById("startButton").disabled = false;
+      document.getElementById("stopButton").disabled = true;
+    });
+
+    document.getElementById("uploadButton").addEventListener("click", async () => {
+      const audioBlob = document.getElementById("uploadButton").audioBlob;
+      const formData = new FormData();
+      formData.append("file", audioBlob, "recorded_audio.webm");
+
+      try {
+        const response = await fetch("/transcribe/", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await response.json();
+        document.getElementById("transcriptionResult").innerText =
+          "Transcription: " + data.transcript;
+      } catch (error) {
+        document.getElementById("transcriptionResult").innerText =
+          "Error during transcription.";
+      }
+    });
+
+    // ===============================
+    //  Existing Upload & Transcribe Logic
+    // ===============================
+    document.getElementById("uploadWavButton").addEventListener("click", async () => {
+      const fileInput = document.getElementById("wavUpload");
+      if (!fileInput.files.length) {
+        alert("Please select a WAV file to upload.");
+        return;
+      }
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("/transcribe/", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await response.json();
+        document.getElementById("transcriptionResultUpload").innerText =
+          "Transcription: " + data.transcript;
+      } catch (error) {
+        document.getElementById("transcriptionResultUpload").innerText =
+          "Error during transcription.";
+      }
+    });
+
+    // ===============================
+    //  NEW: Live Transcription Logic with Final Chunk Ignored
+    // ===============================
+    let liveRecorder;
+    let liveStream;
+    let liveHeader = null; // To store the header from the first chunk
+    let isLiveRecording = false; // Flag to indicate active live recording
+
+    document.getElementById("startLiveButton").addEventListener("click", async () => {
+      isLiveRecording = true; // Set flag to true when starting
+      liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      liveRecorder = new MediaRecorder(liveStream, { mimeType: "audio/webm;codecs=opus" });
+      
+      document.getElementById("liveTranscriptionResult").innerText = "";
+      liveRecorder.ondataavailable = async (event) => {
+        // If recording has been stopped, ignore the final chunk.
+        if (!isLiveRecording) {
+          console.log("Ignoring final chunk after stop");
+          return;
+        }
+        // Optionally, skip very small chunks.
+        if (event.data.size < 512) {
+          console.warn("Chunk too small, skipping");
+          return;
+        }
+        let chunkToSend;
+        if (!liveHeader) {
+          // Store header from the first chunk.
+          liveHeader = event.data;
+          chunkToSend = event.data;
+        } else {
+          // Prepend the stored header to subsequent chunks.
+          chunkToSend = new Blob([liveHeader, event.data], { type: "audio/webm;codecs=opus" });
+        }
+        const formData = new FormData();
+        formData.append("file", chunkToSend, "live_chunk.webm");
+        try {
+          const response = await fetch("/live-transcribe-chunk", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          const currentText = document.getElementById("liveTranscriptionResult").innerText;
+          document.getElementById("liveTranscriptionResult").innerText = currentText + " " + data.transcript;
+        } catch (error) {
+          console.error("Live transcription error:", error);
+        }
+      };
+
+      // Use a 5-second chunk interval for better data quality.
+      liveRecorder.start(5000);
+
+      document.getElementById("startLiveButton").disabled = true;
+      document.getElementById("stopLiveButton").disabled = false;
+    });
+
+    document.getElementById("stopLiveButton").addEventListener("click", () => {
+      // Set flag to false so that any final chunk is ignored.
+      isLiveRecording = false;
+      liveRecorder.stop();
+      liveStream.getTracks().forEach((track) => track.stop());
+      document.getElementById("startLiveButton").disabled = false;
+      document.getElementById("stopLiveButton").disabled = true;
+      // Reset header for future sessions.
+      liveHeader = null;
+    });
+  </script>
+</body>
+</html>
